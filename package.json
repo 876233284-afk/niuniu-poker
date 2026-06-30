@@ -1,0 +1,15 @@
+{
+  "name": "niuniu-poker",
+  "version": "1.0.0",
+  "description": "斗牛纸牌游戏 - 移动端多人在线",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "uuid": "^9.0.0"
+  }
+}
