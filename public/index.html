@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>斗牛纸牌 - 在线多人游戏</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --primary: #e74c3c;
+      --primary-dark: #c0392b;
+      --secondary: #2ecc71;
+      --gold: #f39c12;
+      --dark: #1a1a2e;
+      --darker: #16213e;
+      --card-bg: #0f3460;
+      --text: #ecf0f1;
+      --text-dim: #95a5a6;
+      --white: #ffffff;
+      --shadow: 0 4px 15px rgba(0,0,0,0.3);
+      --radius: 12px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      background: var(--dark);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    /* 页面容器 */
+    .page { display: none; flex-direction: column; min-height: 100vh; }
+    .page.active { display: flex; }
+
+    /* ===== 登录页 ===== */
+    .login-page {
+      background: linear-gradient(135deg, var(--darker), var(--dark), #0a0a1a);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .login-logo {
+      font-size: 72px;
+      margin-bottom: 10px;
+      animation: bounce 2s infinite;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    .login-title {
+      font-size: 32px;
+      font-weight: bold;
+      background: linear-gradient(45deg, var(--gold), #e74c3c);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    .login-subtitle { color: var(--text-dim); font-size: 14px; margin-bottom: 40px; }
+    .login-card {
+      width: 100%;
+      max-width: 360px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 20px;
+      padding: 30px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .form-group { margin-bottom: 18px; }
+    .form-group label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+    .form-input {
+      width: 100%;
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+    .form-input:focus { border-color: var(--primary); }
+    .form-input::placeholder { color: var(--text-dim); }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+      box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+    }
+    .btn-primary:hover { box-shadow: 0 6px 20px rgba(231, 76, 60, 0.6); }
+    .btn-secondary {
+      background: linear-gradient(135deg, var(--secondary), #27ae60);
+      color: white;
+      box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+    }
+    .btn-gold {
+      background: linear-gradient(135deg, var(--gold), #e67e22);
+      color: white;
+      box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4);
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: var(--text);
+    }
+    .btn-sm {
+      padding: 8px 16px;
+      font-size: 13px;
+      width: auto;
+      border-radius: 8px;
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .login-switch {
+      text-align: center;
+      margin-top: 15px;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+    .login-switch a {
+      color: var(--gold);
+      text-decoration: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .tab-btns { display: flex; gap: 0; margin-bottom: 24px; border-radius: 10px; overflow: hidden; }
+    .tab-btn {
+      flex: 1;
+      padding: 12px;
+      background: rgba(255,255,255,0.05);
+      border: none;
+      color: var(--text-dim);
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .tab-btn.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    /* ===== 大厅页 ===== */
+    .lobby-page { background: var(--dark); }
+    .lobby-header {
+      background: linear-gradient(135deg, var(--darker), var(--card-bg));
+      padding: 15px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .lobby-header h1 {
+      font-size: 20px;
+      background: linear-gradient(45deg, var(--gold), var(--primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 6px 12px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.1);
+    }
+    .user-avatar { font-size: 24px; }
+    .user-name { font-size: 13px; font-weight: bold; }
+
+    .lobby-body { flex: 1; padding: 15px; }
+    .section-title {
+      font-size: 14px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .action-card {
+      background: linear-gradient(135deg, var(--card-bg), var(--darker));
+      border-radius: var(--radius);
+      padding: 20px 15px;
+      text-align: center;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: all 0.3s;
+    }
+    .action-card:active { transform: scale(0.96); }
+    .action-card .icon { font-size: 36px; margin-bottom: 8px; }
+    .action-card .label { font-size: 14px; font-weight: bold; }
+
+    .room-list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; }
+    .room-item {
+      background: rgba(255,255,255,0.05);
+      border-radius: var(--radius);
+      padding: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid rgba(255,255,255,0.08);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .room-item:active { transform: scale(0.98); background: rgba(255,255,255,0.1); }
+    .room-info { flex: 1; }
+    .room-name {
+      font-size: 15px;
+      font-weight: bold;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .room-lock { font-size: 12px; color: var(--gold); }
+    .room-meta {
+      font-size: 12px;
+      color: var(--text-dim);
+      display: flex;
+      gap: 12px;
+    }
+    .room-players {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .room-status-playing { color: var(--primary); }
+    .room-status-waiting { color: var(--secondary); }
+
+    .empty-rooms {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-dim);
+    }
+    .empty-rooms .icon { font-size: 48px; margin-bottom: 10px; }
+
+    /* ===== 创建房间弹窗 ===== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      width: 100%;
+      max-width: 400px;
+      background: var(--darker);
+      border-radius: 20px;
+      padding: 25px;
+      animation: slideUp 0.3s;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .modal-close {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    /* ===== 游戏房间 ===== */
+    .game-room-page { background: var(--dark); }
+    .room-header {
+      background: linear-gradient(135deg, var(--darker), var(--card-bg));
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .room-title-area { display: flex; align-items: center; gap: 8px; }
+    .room-title-area h2 { font-size: 16px; }
+    .room-id { font-size: 12px; color: var(--gold); padding: 3px 8px; background: rgba(243,156,18,0.15); border-radius: 6px; }
+    .round-info { font-size: 12px; color: var(--text-dim); }
+    .btn-leave {
+      padding: 6px 14px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* 玩家列表 */
+    .players-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .players-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      padding: 10px;
+    }
+    .player-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      border: 2px solid transparent;
+      transition: all 0.3s;
+      position: relative;
+    }
+    .player-card.is-dealer { border-color: var(--gold); }
+    .player-card.is-dealer::after {
+      content: '庄';
+      position: absolute;
+      top: -1px;
+      right: -1px;
+      background: var(--gold);
+      color: #000;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 1px 6px;
+      border-radius: 0 10px 0 6px;
+    }
+    .player-card.is-host::before {
+      content: '房';
+      position: absolute;
+      top: -1px;
+      left: -1px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 1px 6px;
+      border-radius: 10px 0 6px 0;
+    }
+    .p-avatar { font-size: 32px; margin-bottom: 4px; }
+    .p-name { font-size: 12px; font-weight: bold; margin-bottom: 2px; }
+    .p-money { font-size: 11px; color: var(--gold); }
+    .p-disconnected { opacity: 0.4; }
+    .p-ai-tag {
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(52, 152, 219, 0.85);
+      color: #fff;
+      font-size: 9px;
+      padding: 0 6px;
+      border-radius: 8px;
+      line-height: 16px;
+    }
+
+    /* 牌桌区域 */
+    .table-area {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* 扑克牌 */
+    .cards-hand {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .poker-card {
+      width: 56px;
+      height: 80px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      transition: all 0.3s;
+      animation: dealCard 0.3s ease-out;
+      position: relative;
+    }
+    @keyframes dealCard {
+      from { transform: translateY(-30px) rotate(10deg); opacity: 0; }
+      to { transform: translateY(0) rotate(0); opacity: 1; }
+    }
+    .poker-card.red { color: #e74c3c; }
+    .poker-card.black { color: #2c3e50; }
+    .card-face {
+      background: white;
+      border-radius: 8px;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .card-rank { font-size: 16px; font-weight: bold; }
+    .card-suit { font-size: 22px; }
+    .card-back {
+      width: 56px;
+      height: 80px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #2980b9, #3498db);
+      border: 2px solid #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card-back::after {
+      content: '🂠';
+      font-size: 32px;
+    }
+    .niu-badge {
+      margin-top: 8px;
+      padding: 4px 16px;
+      border-radius: 20px;
+      font-size: 16px;
+      font-weight: bold;
+      animation: popIn 0.5s;
+    }
+    @keyframes popIn {
+      0% { transform: scale(0); }
+      70% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+    .niu-high { background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; }
+    .niu-mid { background: linear-gradient(135deg, #f39c12, #e67e22); color: white; }
+    .niu-low { background: rgba(255,255,255,0.2); color: var(--text-dim); }
+
+    /* 游戏状态信息 */
+    .game-status {
+      text-align: center;
+      padding: 15px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .game-status .dealing { color: var(--gold); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    /* 结算 */
+    .settle-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    .settle-overlay.active { display: flex; }
+    .settle-panel {
+      width: 100%;
+      background: var(--darker);
+      border-radius: 20px;
+      padding: 20px;
+      max-height: 80vh;
+      overflow-y: auto;
+      animation: slideUp 0.4s;
+    }
+    .settle-title { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 15px; }
+    .settle-dealer {
+      text-align: center;
+      padding: 12px;
+      background: rgba(243, 156, 18, 0.1);
+      border-radius: 12px;
+      margin-bottom: 15px;
+    }
+    .settle-dealer .niu-type { font-size: 20px; font-weight: bold; color: var(--gold); }
+    .settle-dealer-total {
+      margin-top: 6px;
+      font-size: 16px;
+      font-weight: bold;
+      text-align: center;
+    }
+    .settle-dealer-total.win { color: var(--secondary); }
+    .settle-dealer-total.lose { color: var(--primary); }
+    .settle-result {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 10px;
+      margin-bottom: 6px;
+      background: rgba(255,255,255,0.05);
+    }
+    .settle-result.win { border-left: 3px solid var(--secondary); }
+    .settle-result.lose { border-left: 3px solid var(--primary); }
+    .settle-emoji { font-size: 28px; margin-right: 10px; }
+    .settle-info { flex: 1; }
+    .settle-name { font-size: 14px; font-weight: bold; }
+    .settle-niu { font-size: 12px; color: var(--text-dim); }
+    .settle-amount { font-size: 16px; font-weight: bold; }
+    .settle-amount.win { color: var(--secondary); }
+    .settle-amount.lose { color: var(--primary); }
+
+    /* 结算紧凑牌面 */
+    .settle-cards-inline {
+      margin-top: 4px;
+      font-size: 11px;
+      letter-spacing: 1px;
+      font-weight: bold;
+    }
+    .settle-cards-inline .c-red { color: #e74c3c; }
+    .settle-cards-inline .c-black { color: #bdc3c7; }
+
+    /* 底部操作栏 */
+    .bottom-bar {
+      padding: 10px 15px;
+      background: var(--darker);
+      border-top: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    /* ===== 个人资料弹窗 ===== */
+    .profile-section { margin-bottom: 20px; }
+    .profile-section h3 { font-size: 14px; color: var(--text-dim); margin-bottom: 10px; }
+    .avatar-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+    .avatar-option {
+      font-size: 32px;
+      padding: 8px;
+      text-align: center;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .avatar-option:active, .avatar-option.selected { border-color: var(--gold); background: rgba(243,156,18,0.15); }
+
+    /* 荷官发牌动画区域 */
+    .dealer-area {
+      text-align: center;
+      padding: 15px;
+      margin-bottom: 10px;
+    }
+    .dealer-label { font-size: 12px; color: var(--gold); margin-bottom: 8px; }
+
+    /* 聊天消息 */
+    .toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.85);
+      color: white;
+      padding: 15px 30px;
+      border-radius: 12px;
+      font-size: 15px;
+      z-index: 2000;
+      animation: fadeInOut 2s;
+      pointer-events: none;
+    }
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      85% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    /* 倍率说明 */
+    .odds-table {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+      font-size: 12px;
+    }
+    .odds-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .odds-row:last-child { border-bottom: none; }
+    .odds-type { color: var(--text); }
+    .odds-val { color: var(--gold); font-weight: bold; }
+
+    /* 其他玩家的牌（显示背面） */
+    .other-cards { display: flex; gap: 3px; margin-top: 4px; justify-content: center; }
+    .other-card-back {
+      width: 28px;
+      height: 40px;
+      border-radius: 4px;
+      background: linear-gradient(135deg, #2980b9, #3498db);
+      border: 1px solid #fff;
+      font-size: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .other-card-face {
+      width: 28px;
+      height: 40px;
+      border-radius: 4px;
+      background: white;
+      font-size: 7px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .other-card-face.red { color: #e74c3c; }
+    .other-card-face.black { color: #2c3e50; }
+
+    /* 等待状态 */
+    .waiting-text {
+      text-align: center;
+      padding: 20px;
+      color: var(--text-dim);
+    }
+
+    /* 密码输入 */
+    .password-prompt {
+      text-align: center;
+      padding: 15px;
+      margin-bottom: 15px;
+      color: var(--gold);
+    }
+  </style>
+</head>
+<body>
+  <!-- ===== 登录/注册页 ===== -->
+  <div id="loginPage" class="page login-page active">
+    <div class="login-logo">🃏</div>
+    <div class="login-title">斗牛纸牌</div>
+    <div class="login-subtitle">多人在线扑克牌游戏</div>
+    <div class="login-card">
+      <div class="tab-btns">
+        <button class="tab-btn active" onclick="switchTab('login')">登录</button>
+        <button class="tab-btn" onclick="switchTab('register')">注册</button>
+      </div>
+
+      <div id="loginForm">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" class="form-input" id="loginUsername" placeholder="请输入用户名" maxlength="20">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" class="form-input" id="loginPassword" placeholder="请输入密码" maxlength="30">
+        </div>
+        <button class="btn btn-primary" onclick="doLogin()">登 录</button>
+      </div>
+
+      <div id="registerForm" style="display:none;">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" class="form-input" id="regUsername" placeholder="设置用户名（2-20字）" maxlength="20">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" class="form-input" id="regPassword" placeholder="设置密码（至少4位）" maxlength="30">
+        </div>
+        <div class="form-group">
+          <label>确认密码</label>
+          <input type="password" class="form-input" id="regPassword2" placeholder="再次输入密码" maxlength="30">
+        </div>
+        <button class="btn btn-secondary" onclick="doRegister()">注 册</button>
+      </div>
+
+      <div class="login-switch">
+        <span id="switchText">还没有账号？</span>
+        <a id="switchLink" onclick="switchTab('register')">立即注册</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 游戏大厅 ===== -->
+  <div id="lobbyPage" class="page lobby-page">
+    <div class="lobby-header">
+      <h1>🃏 斗牛大厅</h1>
+      <div class="user-info" onclick="showProfile()">
+        <span class="user-avatar" id="lobbyAvatar">👤</span>
+        <span class="user-name" id="lobbyName">玩家</span>
+      </div>
+    </div>
+    <div class="lobby-body">
+      <div class="section-title">📌 快捷操作</div>
+      <div class="action-grid">
+        <div class="action-card" onclick="showCreateRoom()">
+          <div class="icon">🏠</div>
+          <div class="label">创建房间</div>
+        </div>
+        <div class="action-card" onclick="showJoinRoom()">
+          <div class="icon">🚪</div>
+          <div class="label">加入房间</div>
+        </div>
+      </div>
+
+      <div class="section-title">📋 房间列表 <span id="roomCount" style="margin-left:auto;">0 个房间</span></div>
+      <div class="room-list" id="roomList">
+        <div class="empty-rooms">
+          <div class="icon">🏚️</div>
+          <div>暂无房间，快创建一个吧！</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 游戏房间 ===== -->
+  <div id="gameRoomPage" class="page game-room-page">
+    <div class="room-header">
+      <div class="room-title-area">
+        <h2 id="gameRoomName">房间</h2>
+        <span class="room-id" id="gameRoomId">000000</span>
+        <span class="round-info" id="gameRoundInfo">第 0 轮</span>
+      </div>
+      <button class="btn-leave" onclick="leaveRoom()">离开</button>
+    </div>
+
+    <div class="players-area">
+      <div class="players-grid" id="playersGrid"></div>
+    </div>
+
+    <div class="table-area" id="tableArea">
+      <div class="waiting-text" id="waitingText">等待房主开始游戏...</div>
+      <div id="myCardsArea" style="display:none;">
+        <div style="text-align:center;font-size:13px;color:var(--text-dim);margin-bottom:6px;">我的手牌</div>
+        <div class="cards-hand" id="myCards"></div>
+        <div style="text-align:center;" id="myNiuArea"></div>
+      </div>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <button class="btn btn-gold btn-sm" id="btnStart" style="display:none;" onclick="startGame()">开始游戏</button>
+      <button class="btn btn-outline btn-sm" id="btnSettings" style="display:none;" onclick="showHostSettings()">房管设置</button>
+      <button class="btn btn-sm" id="btnAddAI" style="display:none;background:linear-gradient(135deg,#3498db,#2980b9);color:white;border:none;" onclick="addAIToRoom()">+ 添加机器人</button>
+    </div>
+  </div>
+
+  <!-- ===== 创建房间弹窗 ===== -->
+  <div class="modal-overlay" id="createRoomModal">
+    <div class="modal">
+      <div class="modal-title">🏠 创建房间</div>
+      <div class="form-group">
+        <label>房间名称</label>
+        <input type="text" class="form-input" id="createRoomName" placeholder="给你的房间起个名字" maxlength="20">
+      </div>
+      <div class="form-group">
+        <label>房间密码（可选）</label>
+        <input type="text" class="form-input" id="createRoomPwd" placeholder="留空则无密码" maxlength="20">
+      </div>
+      <div class="form-group">
+        <label>初始金额</label>
+        <input type="number" class="form-input" id="createRoomMoney" value="1000" min="100" max="99999">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="closeModal('createRoomModal')">取消</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="createRoom()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 加入房间弹窗 ===== -->
+  <div class="modal-overlay" id="joinRoomModal">
+    <div class="modal">
+      <div class="modal-title">🚪 加入房间</div>
+      <div class="form-group">
+        <label>房间号</label>
+        <input type="text" class="form-input" id="joinRoomId" placeholder="输入6位房间号" maxlength="6" style="text-transform:uppercase;">
+      </div>
+      <div class="form-group">
+        <label>房间密码（如有）</label>
+        <input type="text" class="form-input" id="joinRoomPwd" placeholder="无密码可留空" maxlength="20">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="closeModal('joinRoomModal')">取消</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="joinRoom()">加入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 个人资料弹窗 ===== -->
+  <div class="modal-overlay" id="profileModal">
+    <div class="modal">
+      <div class="modal-title">👤 个人资料</div>
+      <div class="profile-section">
+        <h3>修改昵称</h3>
+        <input type="text" class="form-input" id="profileName" placeholder="输入新昵称" maxlength="20">
+      </div>
+      <div class="profile-section">
+        <h3>选择头像</h3>
+        <div class="avatar-grid" id="avatarGrid"></div>
+      </div>
+      <div class="odds-table">
+        <div style="font-weight:bold;margin-bottom:6px;color:var(--gold);">📝 倍率说明</div>
+        <div class="odds-row"><span class="odds-type">炸弹</span><span class="odds-val">6倍</span></div>
+        <div class="odds-row"><span class="odds-type">五小牛</span><span class="odds-val">5倍</span></div>
+        <div class="odds-row"><span class="odds-type">牛牛</span><span class="odds-val">4倍</span></div>
+        <div class="odds-row"><span class="odds-type">牛九</span><span class="odds-val">3倍</span></div>
+        <div class="odds-row"><span class="odds-type">牛八</span><span class="odds-val">2倍</span></div>
+        <div class="odds-row"><span class="odds-type">牛七及以下</span><span class="odds-val">1倍</span></div>
+      </div>
+      <div style="margin-top:15px;">
+        <button class="btn btn-primary" onclick="saveProfile()">保存</button>
+        <button class="btn btn-outline" style="margin-top:8px;" onclick="closeModal('profileModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 房管设置弹窗 ===== -->
+  <div class="modal-overlay" id="hostSettingsModal">
+    <div class="modal">
+      <div class="modal-title">⚙️ 房管设置</div>
+      <div class="form-group">
+        <label>修改初始金额（下轮生效）</label>
+        <input type="number" class="form-input" id="hostMoney" value="1000" min="100" max="99999">
+      </div>
+      <div class="profile-section">
+        <h3>踢出玩家</h3>
+        <div id="kickList" style="max-height:200px;overflow-y:auto;"></div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="closeModal('hostSettingsModal')">关闭</button>
+        <button class="btn btn-gold" style="flex:1;" onclick="applyHostSettings()">应用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 结算弹窗 ===== -->
+  <div class="settle-overlay" id="settleOverlay">
+    <div class="settle-panel" id="settlePanel"></div>
+  </div>
+
+  <script>
+    // ============ 全局状态 ============
+    let socket = null;
+    let currentUser = null;
+    let currentRoom = null;
+    let myCards = [];
+    let myNiuResult = null;
+
+    const defaultAvatars = [
+      '🦁','🐯','🐻','🐼','🦊','🐰','🐸','🐵','🦄','🐲',
+      '👑','🎩','🎭','🎯','🏆','⭐','🔥','💎','🌸','🍀'
+    ];
+
+    // ============ 初始化 ============
+    window.addEventListener('load', () => {
+      initSocket();
+    });
+
+    function initSocket() {
+      socket = io();
+
+      socket.on('connect', () => {
+        console.log('已连接服务器');
+      });
+
+      socket.on('disconnect', () => {
+        showToast('与服务器断开连接');
+      });
+
+      socket.on('kicked', () => {
+        showToast('你已被踢出房间');
+        showPage('lobbyPage');
+      });
+
+      // 房间更新
+      socket.on('roomUpdated', (room) => {
+        currentRoom = room;
+        renderGameRoom();
+      });
+
+      // 游戏开始
+      socket.on('gameStarted', (data) => {
+        currentRoom = { ...currentRoom, ...data, status: 'playing' };
+        renderGameRoom();
+        document.getElementById('waitingText').innerHTML = '<span class="dealing">荷官发牌中...</span>';
+        document.getElementById('myCardsArea').style.display = 'none';
+        document.getElementById('bottomBar').style.display = 'none';
+        try { AudioSys.sfxDeal(); } catch(e) {}
+      });
+
+      // 发牌
+      socket.on('dealCards', (data) => {
+        myCards = data.cards;
+        myNiuResult = data.niuResult;
+        renderMyCards();
+        document.getElementById('waitingText').innerHTML = '🤔 请查看你的手牌...';
+        try { AudioSys.sfxDeal(); } catch(e) {}
+      });
+
+      // 结算
+      socket.on('settle', (data) => {
+        showSettle(data);
+        // 播放输赢音效
+        const myResult = data.results.find(r => r.userId === currentUser.userId);
+        if (myResult) {
+          setTimeout(() => {
+            try { myResult.win ? AudioSys.sfxWin() : AudioSys.sfxLose(); } catch(e) {}
+          }, 300);
+        }
+      });
+
+      // 回合结束
+      socket.on('roundEnd', (data) => {
+        currentRoom = { ...currentRoom, ...data, status: 'waiting' };
+        setTimeout(() => {
+          closeModalById('settleOverlay');
+          renderGameRoom();
+          document.getElementById('myCardsArea').style.display = 'none';
+          document.getElementById('bottomBar').style.display = 'flex';
+          myCards = [];
+          myNiuResult = null;
+        }, 1000);
+      });
+    }
+
+    // ============ 页面切换 ============
+    function showPage(pageId) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById(pageId).classList.add('active');
+
+      if (pageId === 'lobbyPage') {
+        refreshRoomList();
+      }
+    }
+
+    // ============ 登录注册 ============
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach((b, i) => {
+        b.classList.remove('active');
+        if ((tab === 'login' && i === 0) || (tab === 'register' && i === 1)) {
+          b.classList.add('active');
+        }
+      });
+      document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+      document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+      document.getElementById('switchText').textContent = tab === 'login' ? '还没有账号？' : '已有账号？';
+      document.getElementById('switchLink').textContent = tab === 'login' ? '立即注册' : '去登录';
+      document.getElementById('switchLink').setAttribute('onclick', tab === 'login' ? "switchTab('register')" : "switchTab('login')");
+    }
+
+    function doLogin() {
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value.trim();
+      if (!username || !password) return showToast('请输入用户名和密码');
+
+      socket.emit('login', { username, password }, (res) => {
+        if (res.success) {
+          currentUser = res.user;
+          document.getElementById('lobbyAvatar').textContent = currentUser.avatar;
+          document.getElementById('lobbyName').textContent = currentUser.username;
+          showPage('lobbyPage');
+          showToast('登录成功！');
+        } else {
+          showToast(res.msg);
+        }
+      });
+    }
+
+    function doRegister() {
+      const username = document.getElementById('regUsername').value.trim();
+      const password = document.getElementById('regPassword').value.trim();
+      const password2 = document.getElementById('regPassword2').value.trim();
+
+      if (!username || username.length < 2) return showToast('用户名至少2个字');
+      if (!password || password.length < 4) return showToast('密码至少4位');
+      if (password !== password2) return showToast('两次密码不一致');
+
+      socket.emit('register', { username, password }, (res) => {
+        if (res.success) {
+          currentUser = res.user;
+          document.getElementById('lobbyAvatar').textContent = currentUser.avatar;
+          document.getElementById('lobbyName').textContent = currentUser.username;
+          showPage('lobbyPage');
+          showToast('注册成功！');
+        } else {
+          showToast(res.msg);
+        }
+      });
+    }
+
+    // ============ 房间列表 ============
+    function refreshRoomList() {
+      socket.emit('getRoomList', (rooms) => {
+        const list = document.getElementById('roomList');
+        document.getElementById('roomCount').textContent = rooms.length + ' 个房间';
+
+        if (rooms.length === 0) {
+          list.innerHTML = '<div class="empty-rooms"><div class="icon">🏚️</div><div>暂无房间，快创建一个吧！</div></div>';
+          return;
+        }
+
+        list.innerHTML = rooms.map(r => `
+          <div class="room-item" onclick="quickJoin('${r.roomId}', ${r.hasPassword})">
+            <div class="room-info">
+              <div class="room-name">
+                ${escapeHtml(r.roomName)}
+                ${r.hasPassword ? '<span class="room-lock">🔒</span>' : ''}
+              </div>
+              <div class="room-meta">
+                <span>👤 ${r.hostName}</span>
+                <span>💰 初始 ${r.initialMoney}</span>
+                <span>第 ${r.round} 轮</span>
+              </div>
+            </div>
+            <div class="room-players">
+              <span class="${r.status === 'playing' ? 'room-status-playing' : 'room-status-waiting'}">
+                ${r.status === 'playing' ? '🎮' : '⏳'}
+              </span>
+              ${r.playerCount}/${r.maxPlayers}
+            </div>
+          </div>
+        `).join('');
+      });
+    }
+
+    function quickJoin(roomId, hasPassword) {
+      if (hasPassword) {
+        document.getElementById('joinRoomId').value = roomId;
+        document.getElementById('joinRoomPwd').value = '';
+        openModal('joinRoomModal');
+      } else {
+        doJoinRoom(roomId, '');
+      }
+    }
+
+    function showCreateRoom() { openModal('createRoomModal'); }
+    function showJoinRoom() {
+      document.getElementById('joinRoomId').value = '';
+      document.getElementById('joinRoomPwd').value = '';
+      openModal('joinRoomModal');
+    }
+
+    // ============ 创建房间 ============
+    function createRoom() {
+      const roomName = document.getElementById('createRoomName').value.trim();
+      const password = document.getElementById('createRoomPwd').value.trim();
+      const initialMoney = parseInt(document.getElementById('createRoomMoney').value) || 1000;
+
+      socket.emit('createRoom', { roomName, password, initialMoney }, (res) => {
+        if (res.success) {
+          currentRoom = res.room;
+          closeModal('createRoomModal');
+          showPage('gameRoomPage');
+          renderGameRoom();
+          showToast('房间创建成功！房间号: ' + res.roomId);
+        } else {
+          showToast(res.msg);
+        }
+      });
+    }
+
+    // ============ 加入房间 ============
+    function joinRoom() {
+      const roomId = document.getElementById('joinRoomId').value.trim().toUpperCase();
+      const password = document.getElementById('joinRoomPwd').value.trim();
+      if (!roomId) return showToast('请输入房间号');
+      doJoinRoom(roomId, password);
+    }
+
+    function doJoinRoom(roomId, password) {
+      socket.emit('joinRoom', { roomId, password }, (res) => {
+        if (res.success) {
+          currentRoom = res.room;
+          closeModal('joinRoomModal');
+          showPage('gameRoomPage');
+          renderGameRoom();
+          showToast('加入房间成功！');
+        } else {
+          showToast(res.msg);
+        }
+      });
+    }
+
+    // ============ 离开房间 ============
+    function leaveRoom() {
+      if (currentRoom && currentRoom.status === 'playing') {
+        if (!confirm('游戏进行中，确定要离开吗？')) return;
+      }
+      socket.emit('leaveRoom', () => {
+        currentRoom = null;
+        myCards = [];
+        myNiuResult = null;
+        showPage('lobbyPage');
+      });
+    }
+
+    // ============ 渲染游戏房间 ============
+    function renderGameRoom() {
+      if (!currentRoom) return;
+
+      document.getElementById('gameRoomName').textContent = currentRoom.roomName;
+      document.getElementById('gameRoomId').textContent = currentRoom.roomId;
+      document.getElementById('gameRoundInfo').textContent = '第 ' + currentRoom.round + ' 轮';
+
+      const isHost = currentUser && currentUser.userId === currentRoom.hostId;
+      document.getElementById('btnStart').style.display = (isHost && currentRoom.status === 'waiting') ? 'inline-flex' : 'none';
+      document.getElementById('btnSettings').style.display = (isHost && currentRoom.status === 'waiting') ? 'inline-flex' : 'none';
+      document.getElementById('btnAddAI').style.display = (isHost && currentRoom.status === 'waiting' && currentRoom.players.length < currentRoom.maxPlayers) ? 'inline-flex' : 'none';
+      document.getElementById('bottomBar').style.display = currentRoom.status === 'waiting' ? 'flex' : 'none';
+
+      if (currentRoom.status === 'waiting') {
+        document.getElementById('waitingText').textContent = isHost ?
+          `等待玩家加入... (${currentRoom.players.length}/2人可开局)` :
+          '等待房主开始游戏...';
+        document.getElementById('myCardsArea').style.display = 'none';
+      }
+
+      renderPlayers();
+    }
+
+    function renderPlayers() {
+      if (!currentRoom) return;
+      const grid = document.getElementById('playersGrid');
+      grid.innerHTML = currentRoom.players.map((p, i) => {
+        const isDealer = i === currentRoom.dealerIndex;
+        return `
+          <div class="player-card ${isDealer ? 'is-dealer' : ''} ${p.isHost ? 'is-host' : ''} ${p.disconnected ? 'p-disconnected' : ''}">
+            <div class="p-avatar">${p.avatar}</div>
+            <div class="p-name">${escapeHtml(p.username)}</div>
+            <div class="p-money">💰 ${p.money}</div>
+            ${p.isAI ? '<div class="p-ai-tag">🤖 AI</div>' : ''}
+            ${currentRoom.status === 'playing' ? renderOtherCards(p) : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderOtherCards(player) {
+      if (player.userId === currentUser.userId) return '';
+      return '<div class="other-cards">' + Array(5).fill(0).map(() =>
+        '<div class="other-card-back"></div>'
+      ).join('') + '</div>';
+    }
+
+    // ============ 渲染我的手牌 ============
+    function renderMyCards() {
+      document.getElementById('myCardsArea').style.display = 'block';
+      const container = document.getElementById('myCards');
+      container.innerHTML = myCards.map((card, i) => {
+        const isRed = card.suit === '♥' || card.suit === '♦';
+        return `
+          <div class="poker-card ${isRed ? 'red' : 'black'}" style="animation-delay:${i * 0.15}s">
+            <div class="card-face">
+              <div class="card-rank">${card.rank}</div>
+              <div class="card-suit">${card.suit}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // 显示牛型
+      const niuArea = document.getElementById('myNiuArea');
+      if (myNiuResult) {
+        const cls = myNiuResult.level >= 10 ? 'niu-high' : myNiuResult.level >= 7 ? 'niu-mid' : 'niu-low';
+        niuArea.innerHTML = `<div class="niu-badge ${cls}">${myNiuResult.type} (${myNiuResult.multiplier}倍)</div>`;
+      }
+    }
+
+    // ============ 开始游戏 ============
+    function startGame() {
+      if (!currentRoom) return;
+      socket.emit('startGame', { roomId: currentRoom.roomId }, (res) => {
+        if (!res.success) showToast(res.msg);
+      });
+    }
+
+    // ============ AI机器人 ============
+    function addAIToRoom() {
+      if (!currentRoom) return;
+      const remaining = currentRoom.maxPlayers - currentRoom.players.length;
+      if (remaining <= 0) return showToast('房间已满');
+      socket.emit('addAI', { roomId: currentRoom.roomId, count: 1 }, (res) => {
+        if (res.success) {
+          showToast('已添加机器人: ' + res.addedAIs.map(a => a.username).join(', '));
+        } else {
+          showToast(res.msg);
+        }
+      });
+    }
+
+    function removeAIPlayer(aiUserId) {
+      if (!currentRoom) return;
+      socket.emit('removeAI', { roomId: currentRoom.roomId, aiUserId }, (res) => {
+        if (res.success) {
+          showToast('已移除机器人');
+          showHostSettings(); // 刷新设置面板
+        } else {
+          showToast(res.msg);
+        }
+      });
+    }
+
+    // ============ 结算面板 ============
+    function showSettle(data) {
+      const panel = document.getElementById('settlePanel');
+
+      // 计算庄家总输赢
+      let dealerTotal = 0;
+      data.results.forEach(r => {
+        dealerTotal += r.win ? -r.amount : r.amount;
+      });
+
+      let html = `<div class="settle-title">📊 本轮结算</div>`;
+
+      // 庄家信息
+      html += `
+        <div class="settle-dealer">
+          <div style="font-size:11px;color:var(--text-dim);margin-bottom:2px;">庄家</div>
+          <div class="niu-type">${data.dealerNiu.type} (${data.dealerNiu.multiplier}倍)</div>
+          <div class="settle-cards-inline">${data.dealerCards.map(c => {
+            const isRed = c.suit === '♥' || c.suit === '♦';
+            return `<span class="${isRed ? 'c-red' : 'c-black'}">${c.rank}${c.suit}</span>`;
+          }).join(' ')}</div>
+          <div class="settle-dealer-total ${dealerTotal >= 0 ? 'win' : 'lose'}">${dealerTotal >= 0 ? '+' : ''}${dealerTotal}</div>
+        </div>
+      `;
+
+      // 各玩家结果
+      data.results.forEach(r => {
+        const isMe = r.userId === currentUser.userId;
+        html += `
+          <div class="settle-result ${r.win ? 'win' : 'lose'}" style="${isMe ? 'background:rgba(255,255,255,0.1);' : ''}">
+            <div class="settle-info">
+              <div class="settle-name">${r.win ? '✅' : '❌'} ${escapeHtml(r.username)} ${isMe ? '(我)' : ''}</div>
+              <div class="settle-niu">${r.niuResult.type} (${r.niuResult.multiplier}倍) <span class="settle-cards-inline">${r.cards.map(c => {
+                const isRed = c.suit === '♥' || c.suit === '♦';
+                return `<span class="${isRed ? 'c-red' : 'c-black'}">${c.rank}${c.suit}</span>`;
+              }).join(' ')}</span></div>
+            </div>
+            <div class="settle-amount ${r.win ? 'win' : 'lose'}">${r.win ? '+' : '-'}${r.amount}</div>
+          </div>
+        `;
+      });
+
+      panel.innerHTML = html;
+      document.getElementById('settleOverlay').classList.add('active');
+
+      // 更新其他玩家牌面显示
+      const grid = document.getElementById('playersGrid');
+      const cards = grid.querySelectorAll('.player-card');
+      cards.forEach((cardEl, i) => {
+        if (i < currentRoom.players.length) {
+          const p = currentRoom.players[i];
+          if (p.userId !== currentUser.userId) {
+            const otherCardsDiv = cardEl.querySelector('.other-cards');
+            if (otherCardsDiv) {
+              const pResult = data.results.find(r => r.userId === p.userId);
+              if (pResult) {
+                otherCardsDiv.innerHTML = pResult.cards.map(c => {
+                  const isRed = c.suit === '♥' || c.suit === '♦';
+                  return `<div class="other-card-face ${isRed ? 'red' : 'black'}">${c.rank}<br>${c.suit}</div>`;
+                }).join('');
+              } else if (p.userId === data.dealerInfo) {
+                otherCardsDiv.innerHTML = data.dealerCards.map(c => {
+                  const isRed = c.suit === '♥' || c.suit === '♦';
+                  return `<div class="other-card-face ${isRed ? 'red' : 'black'}">${c.rank}<br>${c.suit}</div>`;
+                }).join('');
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ============ 个人资料 ============
+    function showProfile() {
+      document.getElementById('profileName').value = currentUser ? currentUser.username : '';
+      const grid = document.getElementById('avatarGrid');
+      grid.innerHTML = defaultAvatars.map(a => `
+        <div class="avatar-option ${currentUser && currentUser.avatar === a ? 'selected' : ''}" onclick="selectAvatar(this, '${a}')">${a}</div>
+      `).join('');
+      openModal('profileModal');
+    }
+
+    let selectedAvatar = null;
+    function selectAvatar(el, avatar) {
+      document.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedAvatar = avatar;
+    }
+
+    function saveProfile() {
+      const username = document.getElementById('profileName').value.trim();
+      if (!username) return showToast('昵称不能为空');
+      socket.emit('updateProfile', { username, avatar: selectedAvatar }, (res) => {
+        if (res.success) {
+          currentUser = res.user;
+          document.getElementById('lobbyAvatar').textContent = currentUser.avatar;
+          document.getElementById('lobbyName').textContent = currentUser.username;
+          closeModal('profileModal');
+          showToast('资料已更新');
+        }
+      });
+    }
+
+    // ============ 房管设置 ============
+    function showHostSettings() {
+      document.getElementById('hostMoney').value = currentRoom ? currentRoom.initialMoney : 1000;
+      const kickList = document.getElementById('kickList');
+      if (currentRoom) {
+        const aiPlayers = currentRoom.players.filter(p => p.isAI);
+        const humanPlayers = currentRoom.players.filter(p => !p.isAI && p.userId !== currentUser.userId);
+
+        let html = '';
+
+        if (aiPlayers.length > 0) {
+          html += '<div style="font-size:12px;color:#3498db;margin-bottom:6px;">🤖 AI机器人 (' + aiPlayers.length + ')</div>';
+          html += aiPlayers.map(p => `
+            <div class="room-item" style="margin-bottom:6px;">
+              <div class="room-info">
+                <div class="room-name">${p.avatar} ${escapeHtml(p.username)} <span style="color:#3498db;font-size:11px;">[AI]</span></div>
+              </div>
+              <button class="btn btn-sm" style="background:var(--primary);color:white;border:none;" onclick="removeAIPlayer('${p.userId}')">移除</button>
+            </div>
+          `).join('');
+        }
+
+        if (humanPlayers.length > 0) {
+          html += '<div style="font-size:12px;color:var(--text-dim);margin:8px 0 6px;">👤 真实玩家 (' + humanPlayers.length + ')</div>';
+          html += humanPlayers.map(p => `
+            <div class="room-item" style="margin-bottom:6px;">
+              <div class="room-info">
+                <div class="room-name">${p.avatar} ${escapeHtml(p.username)}</div>
+              </div>
+              <button class="btn btn-sm btn-primary" style="background:var(--primary);" onclick="kickPlayer('${p.userId}')">踢出</button>
+            </div>
+          `).join('');
+        }
+
+        if (!html) html = '<div style="text-align:center;color:var(--text-dim);padding:10px;">暂无其他玩家</div>';
+        kickList.innerHTML = html;
+      }
+      openModal('hostSettingsModal');
+    }
+
+    function kickPlayer(userId) {
+      socket.emit('hostSettings', { roomId: currentRoom.roomId, kickUserId: userId }, (res) => {
+        if (!res.success) showToast(res.msg);
+      });
+    }
+
+    function applyHostSettings() {
+      const initialMoney = parseInt(document.getElementById('hostMoney').value) || 1000;
+      socket.emit('hostSettings', { roomId: currentRoom.roomId, initialMoney }, (res) => {
+        if (res.success) {
+          showToast('设置已更新');
+          closeModal('hostSettingsModal');
+        } else {
+          showToast(res.msg);
+        }
+      });
+    }
+
+    // ============ 弹窗控制 ============
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    function closeModalById(id) { document.getElementById(id).classList.remove('active'); }
+
+    // 点击遮罩关闭
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.classList.remove('active');
+      });
+    });
+
+    // ============ Toast ============
+    function showToast(msg) {
+      const existing = document.querySelector('.toast');
+      if (existing) existing.remove();
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2000);
+    }
+
+    // ============ 工具函数 ============
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // 回车快捷键
+    document.getElementById('loginPassword').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doLogin();
+    });
+    document.getElementById('regPassword2').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doRegister();
+    });
+    document.getElementById('joinRoomId').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') joinRoom();
+    });
+
+    // ============ 音乐与音效系统 (Web Audio API) ============
+    const AudioSys = (() => {
+      let ctx = null;
+      let bgmTimer = null;
+      let bgmPlaying = false;
+      let bgmVolume = 0.08;
+
+      function getCtx() {
+        if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === 'suspended') ctx.resume();
+        return ctx;
+      }
+
+      // 播放单个音符
+      function playNote(freq, duration, type, volume, startTime) {
+        const c = getCtx();
+        const osc = c.createOscillator();
+        const gain = c.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(volume || 0.1, startTime + 0.02);
+        gain.gain.linearRampToValueAtTime(0, startTime + duration);
+        osc.connect(gain);
+        gain.connect(c.destination);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      }
+
+      // 大厅背景音乐 - 轻松愉快的循环旋律
+      const lobbyMelody = [
+        // 频率, 持续时间(拍), 音符类型
+        [523, 1, 'triangle'], // C5
+        [587, 1, 'triangle'], // D5
+        [659, 1, 'triangle'], // E5
+        [784, 2, 'triangle'], // G5
+        [659, 1, 'triangle'], // E5
+        [523, 1, 'triangle'], // C5
+        [494, 2, 'triangle'], // B4
+        [0, 1, 'rest'],       // 休止
+        [440, 1, 'triangle'], // A4
+        [494, 1, 'triangle'], // B4
+        [523, 1, 'triangle'], // C5
+        [587, 2, 'triangle'], // D5
+        [523, 1, 'triangle'], // C5
+        [440, 1, 'triangle'], // A4
+        [392, 2, 'triangle'], // G4
+        [0, 1, 'rest'],       // 休止
+      ];
+
+      // 房间内背景音乐 - 稍微紧张的旋律
+      const roomMelody = [
+        [330, 0.5, 'sine'],  // E4
+        [392, 0.5, 'sine'],  // G4
+        [440, 1, 'sine'],    // A4
+        [392, 0.5, 'sine'],  // G4
+        [330, 0.5, 'sine'],  // E4
+        [294, 1, 'sine'],    // D4
+        [330, 1, 'sine'],    // E4
+        [0, 0.5, 'rest'],
+        [262, 0.5, 'sine'],  // C4
+        [294, 0.5, 'sine'],  // D4
+        [330, 1, 'sine'],    // E4
+        [392, 0.5, 'sine'],  // G4
+        [440, 0.5, 'sine'],  // A4
+        [392, 1, 'sine'],    // G4
+        [330, 1, 'sine'],    // E4
+        [0, 0.5, 'rest'],
+      ];
+
+      let currentMelody = null;
+
+      function playMelodyLoop(melody, bpm) {
+        stopBGM();
+        currentMelody = melody;
+        bgmPlaying = true;
+        const beatDur = 60 / bpm;
+        let noteIndex = 0;
+
+        function scheduleNotes() {
+          if (!bgmPlaying) return;
+          const c = getCtx();
+          const now = c.currentTime;
+          let t = now;
+          // 每次调度一轮旋律
+          for (let i = 0; i < melody.length; i++) {
+            const [freq, beats, type] = melody[i];
+            const dur = beats * beatDur;
+            if (freq > 0) {
+              playNote(freq, dur * 0.9, type, bgmVolume, t);
+              // 和声伴奏
+              if (freq > 200) {
+                playNote(freq * 0.5, dur * 0.9, 'sine', bgmVolume * 0.3, t);
+              }
+            }
+            t += dur;
+          }
+          // 旋律总时长后调度下一轮
+          const totalDur = melody.reduce((sum, n) => sum + n[1] * beatDur, 0);
+          bgmTimer = setTimeout(() => {
+            if (bgmPlaying) scheduleNotes();
+          }, totalDur * 1000 - 50);
+        }
+
+        // 首次交互触发
+        try { getCtx(); } catch(e) {}
+        scheduleNotes();
+      }
+
+      function stopBGM() {
+        bgmPlaying = false;
+        if (bgmTimer) { clearTimeout(bgmTimer); bgmTimer = null; }
+      }
+
+      // 音效：发牌
+      function sfxDeal() {
+        const c = getCtx();
+        const now = c.currentTime;
+        for (let i = 0; i < 5; i++) {
+          const t = now + i * 0.15;
+          const osc = c.createOscillator();
+          const gain = c.createGain();
+          const noise = c.createOscillator();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(800 + Math.random() * 400, t);
+          osc.frequency.exponentialRampToValueAtTime(200, t + 0.05);
+          gain.gain.setValueAtTime(0.06, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+          osc.connect(gain);
+          gain.connect(c.destination);
+          osc.start(t);
+          osc.stop(t + 0.07);
+        }
+      }
+
+      // 音效：赢了
+      function sfxWin() {
+        const c = getCtx();
+        const now = c.currentTime;
+        [523, 659, 784, 1047].forEach((f, i) => {
+          playNote(f, 0.2, 'triangle', 0.12, now + i * 0.1);
+        });
+      }
+
+      // 音效：输了
+      function sfxLose() {
+        const c = getCtx();
+        const now = c.currentTime;
+        [392, 349, 330, 262].forEach((f, i) => {
+          playNote(f, 0.25, 'sine', 0.08, now + i * 0.15);
+        });
+      }
+
+      // 音效：按钮点击
+      function sfxClick() {
+        const c = getCtx();
+        const now = c.currentTime;
+        playNote(880, 0.05, 'square', 0.04, now);
+      }
+
+      return {
+        playLobbyBGM: () => playMelodyLoop(lobbyMelody, 140),
+        playRoomBGM: () => playMelodyLoop(roomMelody, 120),
+        stopBGM,
+        sfxDeal,
+        sfxWin,
+        sfxLose,
+        sfxClick
+      };
+    })();
+
+    // 页面切换时自动管理音乐
+    const origShowPage = showPage;
+    showPage = function(pageId) {
+      origShowPage(pageId);
+      if (pageId === 'lobbyPage') {
+        try { AudioSys.playLobbyBGM(); } catch(e) {}
+      } else if (pageId === 'gameRoomPage') {
+        try { AudioSys.playRoomBGM(); } catch(e) {}
+      } else {
+        AudioSys.stopBGM();
+      }
+    };
+
+    // 首次交互启动AudioContext
+    document.addEventListener('click', function initAudio() {
+      try { AudioSys.sfxClick(); } catch(e) {}
+      document.removeEventListener('click', initAudio);
+    }, { once: true });
+  </script>
+</body>
+</html>
